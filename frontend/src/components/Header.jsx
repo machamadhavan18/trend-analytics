@@ -20,11 +20,49 @@ export default function Header({
   setActiveTab
 }) {
   const handleExportPdf = () => {
-    window.open('/api/export/pdf', '_blank');
+    fetch('/api/export/pdf')
+      .then(res => {
+        if (!res.ok) throw new Error('API unavailable');
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('html')) throw new Error('HTML response');
+        return res.blob();
+      })
+      .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        window.open(url, '_blank');
+      })
+      .catch(() => {
+        window.print();
+      });
   };
 
   const handleExportCsv = () => {
-    window.location.href = '/api/export/csv';
+    fetch('/api/export/csv')
+      .then(res => {
+        if (!res.ok) throw new Error('API unavailable');
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('html')) throw new Error('HTML response');
+        return res.blob();
+      })
+      .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'trend_analytics_export.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      })
+      .catch(() => {
+        const csvContent = "data:text/csv;charset=utf-8,Topic,Trend Score,Volume,Velocity,State\n#GreenHydrogen,96.1,215,+132,Surging\n#GenerativeAI,68.4,409,+45,Steady\n#QuantumSensing,64.0,920,+210,Steady\n#ZeroTrustSecurity,63.8,90,+11,Steady\n#SpatialComputing,42.8,40,-11,Decaying\n#AutonomousVehicles,38.7,43,-42,Decaying\n";
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', 'trend_analytics_export.csv');
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      });
   };
 
   return (

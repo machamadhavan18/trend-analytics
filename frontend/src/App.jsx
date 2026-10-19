@@ -19,6 +19,7 @@ import AddTopicModal from './components/AddTopicModal';
 import GlobalSearchModal from './components/GlobalSearchModal';
 import ModelStudioModal from './components/ModelStudioModal';
 import TimeLapsePlayer from './components/TimeLapsePlayer';
+import { FALLBACK_DATA } from './fallbackData';
 
 import { Sparkles, GitCompare, Network, Bell, Radio, Zap } from 'lucide-react';
 
@@ -68,24 +69,60 @@ export default function App() {
     };
   }, [isStreaming, selectedTopicId]);
 
+  // Fallback simulator for Netlify and static deployments without a live Python backend
+  const getFallbackForUrl = (url) => {
+    if (!FALLBACK_DATA) return null;
+    if (url.startsWith('/api/topics')) return FALLBACK_DATA.topics;
+    if (url.startsWith('/api/alerts')) return FALLBACK_DATA.alerts;
+    if (url.startsWith('/api/evaluation')) return FALLBACK_DATA.evaluation;
+    if (url.startsWith('/api/posts/live')) return FALLBACK_DATA.posts;
+    if (url.startsWith('/api/simulate/step')) {
+      return { status: 'success', current_window: 17 };
+    }
+    if (url.startsWith('/api/simulate/reset')) {
+      return { status: 'reset', current_window: 16 };
+    }
+    if (url.startsWith('/api/topic/')) {
+      const tid = url.split('/api/topic/')[1]?.split('?')[0];
+      return FALLBACK_DATA.details[tid] || Object.values(FALLBACK_DATA.details)[0];
+    }
+    if (url.startsWith('/api/insights/')) {
+      const tid = url.split('/api/insights/')[1]?.split('?')[0];
+      return FALLBACK_DATA.insights[tid] || Object.values(FALLBACK_DATA.insights)[0];
+    }
+    if (url.startsWith('/api/network/')) {
+      const tid = url.split('/api/network/')[1]?.split('?')[0];
+      return FALLBACK_DATA.networks[tid] || Object.values(FALLBACK_DATA.networks)[0];
+    }
+    if (url.startsWith('/api/prediction/')) {
+      const tid = url.split('/api/prediction/')[1]?.split('?')[0];
+      return FALLBACK_DATA.predictions[tid] || Object.values(FALLBACK_DATA.predictions)[0];
+    }
+    return null;
+  };
+
   // Safe fetch helper with NaN sanitization and RFC-compliant JSON parsing
   const safeFetchJson = async (url, options = {}) => {
     try {
       const res = await fetch(url, options);
       if (!res.ok) {
-        console.warn(`HTTP error on ${url}: ${res.status}`);
-        return null;
+        console.info(`[Demo Mode] Backend endpoint ${url} returned status ${res.status}. Loading embedded intelligence data.`);
+        return getFallbackForUrl(url);
       }
       const text = await res.text();
-      // Replace unquoted NaN, Infinity, -Infinity if present
+      // If server returned HTML (e.g. Netlify SPA index.html fallback for missing API), use fallback data
+      if (text.trim().startsWith('<') || text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<!doctype')) {
+        console.info(`[Demo Mode] Netlify SPA HTML response detected on ${url}. Activating embedded intelligence data.`);
+        return getFallbackForUrl(url);
+      }
       const cleanJson = text
         .replace(/:\s*NaN\b/g, ': null')
         .replace(/:\s*Infinity\b/g, ': null')
         .replace(/:\s*-Infinity\b/g, ': null');
       return JSON.parse(cleanJson);
     } catch (err) {
-      console.error(`Error in safeFetchJson(${url}):`, err);
-      return null;
+      console.warn(`[Demo Mode] Network fetch failed on ${url}:`, err.message);
+      return getFallbackForUrl(url);
     }
   };
 
