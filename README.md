@@ -119,3 +119,7 @@ cd backend
 python test_api.py
 ```
 *(All 11 enterprise test suites pass in ~3.9s: status, topics, multi-persona insights, Q&A querying, event injection, live feed, comparison, SIR cascade, XAI feature importances, CSV export, and PDF generation).*
+## Live Demo
+
+Visit the deployed Trend Analytics dashboard:
+trend-analytics-k9v1.vercel.app
