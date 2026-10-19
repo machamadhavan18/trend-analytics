@@ -68,12 +68,33 @@ export default function App() {
     };
   }, [isStreaming, selectedTopicId]);
 
+  // Safe fetch helper with NaN sanitization and RFC-compliant JSON parsing
+  const safeFetchJson = async (url, options = {}) => {
+    try {
+      const res = await fetch(url, options);
+      if (!res.ok) {
+        console.warn(`HTTP error on ${url}: ${res.status}`);
+        return null;
+      }
+      const text = await res.text();
+      // Replace unquoted NaN, Infinity, -Infinity if present
+      const cleanJson = text
+        .replace(/:\s*NaN\b/g, ': null')
+        .replace(/:\s*Infinity\b/g, ': null')
+        .replace(/:\s*-Infinity\b/g, ': null');
+      return JSON.parse(cleanJson);
+    } catch (err) {
+      console.error(`Error in safeFetchJson(${url}):`, err);
+      return null;
+    }
+  };
+
   const fetchInitialData = async () => {
     try {
       const [resTopics, resAlerts, resEval] = await Promise.all([
-        fetch('/api/topics').then(r => r.json()),
-        fetch('/api/alerts').then(r => r.json()),
-        fetch('/api/evaluation').then(r => r.json())
+        safeFetchJson('/api/topics'),
+        safeFetchJson('/api/alerts'),
+        safeFetchJson('/api/evaluation')
       ]);
 
       if (resTopics && resTopics.topics) {
@@ -97,16 +118,16 @@ export default function App() {
   const fetchTopicData = async (topicId) => {
     try {
       const [resDetail, resInsight, resNet, resPred] = await Promise.all([
-        fetch(`/api/topic/${topicId}`).then(r => r.json()),
-        fetch(`/api/insights/${topicId}`).then(r => r.json()),
-        fetch(`/api/network/${topicId}`).then(r => r.json()),
-        fetch(`/api/prediction/${topicId}`).then(r => r.json())
+        safeFetchJson(`/api/topic/${topicId}`),
+        safeFetchJson(`/api/insights/${topicId}`),
+        safeFetchJson(`/api/network/${topicId}`),
+        safeFetchJson(`/api/prediction/${topicId}`)
       ]);
 
-      setTopicDetail(resDetail);
-      setInsightData(resInsight);
-      setNetworkData(resNet);
-      setPredictionData(resPred.prediction);
+      if (resDetail) setTopicDetail(resDetail);
+      if (resInsight) setInsightData(resInsight);
+      if (resNet) setNetworkData(resNet);
+      if (resPred && resPred.prediction) setPredictionData(resPred.prediction);
     } catch (err) {
       console.error(`Error fetching data for topic ${topicId}:`, err);
     }
@@ -114,15 +135,16 @@ export default function App() {
 
   const handleStepSimulation = async () => {
     try {
-      const res = await fetch('/api/simulate/step', { method: 'POST' });
-      const data = await res.json();
-      setCurrentWindow(data.current_window);
-      setActiveWindow(data.current_window - 1);
+      const data = await safeFetchJson('/api/simulate/step', { method: 'POST' });
+      if (data) {
+        setCurrentWindow(data.current_window);
+        setActiveWindow(data.current_window - 1);
+      }
 
-      const resTopics = await fetch('/api/topics').then(r => r.json());
-      const resAlerts = await fetch('/api/alerts').then(r => r.json());
-      setTopics(resTopics.topics);
-      setAlerts(resAlerts.alerts);
+      const resTopics = await safeFetchJson('/api/topics');
+      const resAlerts = await safeFetchJson('/api/alerts');
+      if (resTopics && resTopics.topics) setTopics(resTopics.topics);
+      if (resAlerts && resAlerts.alerts) setAlerts(resAlerts.alerts);
 
       if (selectedTopicId) {
         fetchTopicData(selectedTopicId);
@@ -134,7 +156,7 @@ export default function App() {
 
   const handleResetSimulation = async () => {
     try {
-      await fetch('/api/simulate/reset', { method: 'POST' });
+      await safeFetchJson('/api/simulate/reset', { method: 'POST' });
       setIsStreaming(false);
       fetchInitialData();
     } catch (err) {

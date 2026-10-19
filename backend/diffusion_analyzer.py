@@ -26,21 +26,38 @@ class DiffusionAnalyzer:
 
         for post in filtered_posts:
             author = post.get('author_id')
-            if not author:
+            if not author or pd.isna(author) or str(author).strip().lower() in ['nan', 'none', '']:
                 continue
+
+            author = str(author).strip()
+            author_name = post.get('author_name')
+            if not author_name or pd.isna(author_name) or str(author_name).strip().lower() in ['nan', 'none', '']:
+                author_name = author
+            else:
+                author_name = str(author_name).strip()
+
+            followers = post.get('author_followers', 100)
+            if pd.isna(followers):
+                followers = 100
 
             if not G.has_node(author):
                 G.add_node(
                     author,
-                    name=post.get('author_name', author),
-                    followers=post.get('author_followers', 100),
+                    name=author_name,
+                    followers=int(followers),
                     post_count=1
                 )
             else:
                 G.nodes[author]['post_count'] = G.nodes[author].get('post_count', 0) + 1
 
             retweet_target = post.get('retweet_of_user')
-            if retweet_target and retweet_target != author:
+            if (
+                retweet_target 
+                and not pd.isna(retweet_target) 
+                and str(retweet_target).strip().lower() not in ['nan', 'none', '']
+                and str(retweet_target).strip() != author
+            ):
+                retweet_target = str(retweet_target).strip()
                 if not G.has_node(retweet_target):
                     G.add_node(retweet_target, name=retweet_target, followers=5000, post_count=1)
 
@@ -239,22 +256,29 @@ class DiffusionAnalyzer:
             btw = betweenness.get(node, 0.0)
             followers = G.nodes[node].get('followers', 0)
             name = G.nodes[node].get('name', node)
-            influence_score = 0.5 * deg + 0.5 * btw
+            if not name or pd.isna(name) or str(name).strip().lower() in ['nan', 'none', '']:
+                name = str(node)
+            else:
+                name = str(name).strip()
 
-            role = "Inter-Community Bridge" if btw > 0.07 else ("Mega Broadcast Hub" if deg > 0.14 else "Active Node")
+            deg_val = round(float(deg), 4) if not (pd.isna(deg) or np.isnan(deg)) else 0.0
+            btw_val = round(float(btw), 4) if not (pd.isna(btw) or np.isnan(btw)) else 0.0
+            influence_score = 0.5 * deg_val + 0.5 * btw_val
+
+            role = "Inter-Community Bridge" if btw_val > 0.07 else ("Mega Broadcast Hub" if deg_val > 0.14 else "Active Node")
 
             influential_users.append({
-                "user_id": node,
+                "user_id": str(node),
                 "name": name,
-                "followers": int(followers),
-                "degree_centrality": round(float(deg), 4),
+                "followers": int(followers) if not pd.isna(followers) else 100,
+                "degree_centrality": deg_val,
                 "in_degree": round(float(in_deg_centrality.get(node, 0.0)), 4),
                 "out_degree": round(float(out_deg_centrality.get(node, 0.0)), 4),
-                "betweenness_centrality": round(float(btw), 4),
+                "betweenness_centrality": btw_val,
                 "influence_score": round(float(influence_score), 4),
-                "community_id": node_community_map.get(node, 0),
+                "community_id": int(node_community_map.get(node, 0)),
                 "role": role,
-                "cascade_hops": shortest_paths.get(node, 0)
+                "cascade_hops": int(shortest_paths.get(node, 0))
             })
 
         influential_users.sort(key=lambda x: x["influence_score"], reverse=True)
@@ -262,29 +286,36 @@ class DiffusionAnalyzer:
         # 5. Plotly Nodes
         plotly_nodes = []
         for node in G.nodes():
-            x, y = layout_pos[node]
+            x, y = layout_pos.get(node, (0.0, 0.0))
             c_x, c_y = concentric_pos.get(node, [x, y])
             deg = deg_centrality.get(node, 0.0)
             btw = betweenness.get(node, 0.0)
             comm = node_community_map.get(node, 0)
             name = G.nodes[node].get('name', node)
-            followers = G.nodes[node].get('followers', 100)
+            if not name or pd.isna(name) or str(name).strip().lower() in ['nan', 'none', '']:
+                name = str(node)
+            else:
+                name = str(name).strip()
 
-            size = max(9, min(38, int(11 + 65 * deg + 45 * btw)))
+            followers = G.nodes[node].get('followers', 100)
+            deg_clean = float(deg) if not (pd.isna(deg) or np.isnan(deg)) else 0.0
+            btw_clean = float(btw) if not (pd.isna(btw) or np.isnan(btw)) else 0.0
+
+            size = max(9, min(38, int(11 + 65 * deg_clean + 45 * btw_clean)))
 
             plotly_nodes.append({
-                "id": node,
+                "id": str(node),
                 "name": name,
-                "x": float(x),
-                "y": float(y),
-                "concentric_x": float(c_x),
-                "concentric_y": float(c_y),
+                "x": float(x) if not (pd.isna(x) or np.isnan(x)) else 0.0,
+                "y": float(y) if not (pd.isna(y) or np.isnan(y)) else 0.0,
+                "concentric_x": float(c_x) if not (pd.isna(c_x) or np.isnan(c_x)) else 0.0,
+                "concentric_y": float(c_y) if not (pd.isna(c_y) or np.isnan(c_y)) else 0.0,
                 "size": size,
-                "community_id": comm,
-                "degree": round(deg, 4),
-                "betweenness": round(btw, 4),
-                "followers": followers,
-                "cascade_hops": shortest_paths.get(node, 0)
+                "community_id": int(comm),
+                "degree": round(deg_clean, 4),
+                "betweenness": round(btw_clean, 4),
+                "followers": int(followers) if not pd.isna(followers) else 100,
+                "cascade_hops": int(shortest_paths.get(node, 0))
             })
 
         # 6. Plotly Edges
@@ -292,8 +323,8 @@ class DiffusionAnalyzer:
         for u, v, data in G.edges(data=True):
             if u in layout_pos and v in layout_pos:
                 plotly_edges.append({
-                    "source": u,
-                    "target": v,
+                    "source": str(u),
+                    "target": str(v),
                     "source_x": float(layout_pos[u][0]),
                     "source_y": float(layout_pos[u][1]),
                     "target_x": float(layout_pos[v][0]),
@@ -317,6 +348,19 @@ class DiffusionAnalyzer:
         density = round(float(nx.density(G)), 4)
         num_communities = len(louvain_comms)
 
+        top_hub_name = "Community Network"
+        if influential_users:
+            candidate = influential_users[0].get("name")
+            if candidate and not pd.isna(candidate) and str(candidate).strip().lower() not in ['nan', 'none', '']:
+                top_hub_name = str(candidate).strip()
+
+        top_bridge_name = "Bridge Account"
+        if influential_users:
+            best_bridge = max(influential_users, key=lambda x: x.get("betweenness_centrality", 0.0))
+            candidate = best_bridge.get("name")
+            if candidate and not pd.isna(candidate) and str(candidate).strip().lower() not in ['nan', 'none', '']:
+                top_bridge_name = str(candidate).strip()
+
         summary = {
             "total_users": num_nodes,
             "diffusion_edges": num_edges,
@@ -325,8 +369,8 @@ class DiffusionAnalyzer:
             "modularity_q": modularity_q,
             "reproduction_number_r0": sir_sim["r0"],
             "virality_state": sir_sim["virality_state"],
-            "top_hub": influential_users[0]["name"] if influential_users else "None",
-            "top_bridge": max(influential_users, key=lambda x: x["betweenness_centrality"])["name"] if influential_users else "None",
+            "top_hub": top_hub_name,
+            "top_bridge": top_bridge_name,
             "cib_score": cib_analysis["cib_score"],
             "organic_ratio": cib_analysis["organic_ratio"],
             "bot_risk": cib_analysis["classification"]

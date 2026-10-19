@@ -1,7 +1,11 @@
 import io
 import os
 import json
+import math
+import re
 import random
+import numpy as np
+import pandas as pd
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, request, send_file, Response
 from flask_cors import CORS
@@ -20,6 +24,25 @@ from export_service import ExportService
 
 app = Flask(__name__)
 CORS(app)
+
+@app.after_request
+def sanitize_json_response(response):
+    """
+    Enterprise JSON Validator:
+    RFC 8259 forbids NaN, Infinity, and -Infinity in standard JSON.
+    Standard browser JSON.parse will throw a SyntaxError if NaN is encountered.
+    This hook intercepts all JSON responses and replaces literal NaN/Infinity with null.
+    """
+    if response.mimetype == 'application/json':
+        try:
+            raw_text = response.get_data(as_text=True)
+            if 'NaN' in raw_text or 'Infinity' in raw_text:
+                clean_text = re.sub(r'\bNaN\b', 'null', raw_text)
+                clean_text = re.sub(r'\b-?Infinity\b', 'null', clean_text)
+                response.set_data(clean_text)
+        except Exception:
+            pass
+    return response
 
 class TrendAnalyticsEngine:
     """
@@ -52,8 +75,9 @@ class TrendAnalyticsEngine:
         # 3. Trend Detection
         self.df_detected = self.trend_detector.analyze_sliding_windows(self.df_aggregated)
 
-        # Update raw_posts to the cleaned normalized records
-        self.raw_posts = self.df_posts.to_dict(orient='records')
+        # Update raw_posts to the cleaned normalized records without NaN
+        clean_df = self.df_posts.where(pd.notnull(self.df_posts), None)
+        self.raw_posts = clean_df.to_dict(orient='records')
 
         # 4. Trend Scoring
         self.df_scored = self.trend_scorer.compute_scores(self.df_detected)
