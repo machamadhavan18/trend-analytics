@@ -19,6 +19,7 @@ import AddTopicModal from './components/AddTopicModal';
 import GlobalSearchModal from './components/GlobalSearchModal';
 import ModelStudioModal from './components/ModelStudioModal';
 import TimeLapsePlayer from './components/TimeLapsePlayer';
+import ErrorBoundary from './components/ErrorBoundary';
 import { FALLBACK_DATA } from './fallbackData';
 
 import { Sparkles, GitCompare, Network, Bell, Radio, Zap } from 'lucide-react';
@@ -93,6 +94,15 @@ export default function App() {
     if (url.startsWith('/api/network/')) {
       const tid = url.split('/api/network/')[1]?.split('?')[0];
       return FALLBACK_DATA.networks[tid] || Object.values(FALLBACK_DATA.networks)[0];
+    }
+    if (url.startsWith('/api/compare')) {
+      const tList = FALLBACK_DATA.topics?.topics || [];
+      return {
+        topic_a: { id: tList[0]?.topic_id, name: tList[0]?.topic_name, trend_score: tList[0]?.trend_score || 83.8 },
+        topic_b: { id: tList[1]?.topic_id, name: tList[1]?.topic_name, trend_score: tList[1]?.trend_score || 72.4 },
+        summary_verdict: 'Comparative analysis loaded.',
+        dimensions: []
+      };
     }
     if (url.startsWith('/api/prediction/')) {
       const tid = url.split('/api/prediction/')[1]?.split('?')[0];
@@ -397,7 +407,7 @@ export default function App() {
 
         {/* Tab 4: Topic Comparison */}
         {activeTab === 'comparison' && (
-          <TopicComparator topics={topics} />
+          <ErrorBoundary fallback={<div className="glass-panel" style={{ padding: '24px', textAlign: 'center' }}>Topic comparison is temporarily unavailable.</div>}><TopicComparator topics={topics} /></ErrorBoundary>
         )}
 
         {/* Tab 5: Real-Time Threshold Alerts */}

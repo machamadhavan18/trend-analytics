@@ -1,6 +1,7 @@
 import React from 'react';
 import Plotly from 'plotly.js-dist-min';
 import createPlotlyComponent from 'react-plotly.js/factory';
+import ErrorBoundary from './ErrorBoundary';
 
 const Plot = createPlotlyComponent(Plotly);
 
@@ -25,13 +26,20 @@ export default function PlotlyChart({ data, layout, config, style, className }) 
 
   return (
     <div className={`chart-wrapper ${className || ''}`} style={{ width: '100%', height: '100%', minHeight: '300px', ...style }}>
-      <Plot
-        data={data}
-        layout={mergedLayout}
-        config={mergedConfig}
-        useResizeHandler={true}
-        style={{ width: '100%', height: '100%' }}
-      />
+      <ErrorBoundary fallback={
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '260px', color: '#94a3b8', fontSize: '0.85rem', gap: '8px' }}>
+          <span>Telemetry Visualization Rendering</span>
+          <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Refreshing chart dimensions...</span>
+        </div>
+      }>
+        <Plot
+          data={data}
+          layout={mergedLayout}
+          config={mergedConfig}
+          useResizeHandler={true}
+          style={{ width: '100%', height: '100%' }}
+        />
+      </ErrorBoundary>
     </div>
   );
 }

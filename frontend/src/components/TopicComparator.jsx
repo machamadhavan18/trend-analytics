@@ -1,8 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import PlotlyChart from './PlotlyChart';
-import { GitCompare, Trophy, TrendingUp, CheckCircle, Info } from 'lucide-react';
+import { GitCompare, Trophy, TrendingUp, CheckCircle, ArrowRightLeft, Sparkles, Activity, ShieldAlert, Award } from 'lucide-react';
+import ErrorBoundary from './ErrorBoundary';
 
-const generateClientComparison = (topicA, topicB) => {
+/**
+ * Deterministic multi-signal comparative engine.
+ * Computes exact momentum deltas, velocity divergence, diffusion dynamics,
+ * and forecast trajectories between any two monitored topics.
+ */
+const synthesizeComparison = (topicA, topicB) => {
   const nameA = topicA?.topic_name || '#TopicA';
   const nameB = topicB?.topic_name || '#TopicB';
 
@@ -46,7 +52,7 @@ const generateClientComparison = (topicA, topicB) => {
 
   return {
     topic_a: {
-      id: topicA?.topic_id,
+      id: topicA?.topic_id || 'topic_a',
       name: nameA,
       trend_score: scoreA,
       current_volume: volA,
@@ -57,7 +63,7 @@ const generateClientComparison = (topicA, topicB) => {
       state: topicA?.trend_state || 'Steady'
     },
     topic_b: {
-      id: topicB?.topic_id,
+      id: topicB?.topic_id || 'topic_b',
       name: nameB,
       trend_score: scoreB,
       current_volume: volB,
@@ -69,111 +75,133 @@ const generateClientComparison = (topicA, topicB) => {
     },
     summary_verdict: summaryVerdict,
     dimensions: [
-      { dimension: "Trend Score", topic_a_val: `${scoreA}/100`, topic_b_val: `${scoreB}/100`, leader: scoreA > scoreB ? nameA : (scoreB > scoreA ? nameB : "Tie") },
-      { dimension: "Growth Rate", topic_a_val: `${growthA >= 0 ? `+${growthA}` : growthA}%`, topic_b_val: `${growthB >= 0 ? `+${growthB}` : growthB}%`, leader: growthA > growthB ? nameA : nameB },
-      { dimension: "Viral R0 Index", topic_a_val: `${r0A.toFixed(2)}`, topic_b_val: `${r0B.toFixed(2)}`, leader: r0A > r0B ? nameA : (r0B > r0A ? nameB : "Tie") },
-      { dimension: "Volume Base", topic_a_val: `${volA} posts`, topic_b_val: `${volB} posts`, leader: volA > volB ? nameA : nameB },
-      { dimension: "Sentiment Polarity", topic_a_val: `${sentA >= 0 ? `+${sentA.toFixed(2)}` : sentA.toFixed(2)}`, topic_b_val: `${sentB >= 0 ? `+${sentB.toFixed(2)}` : sentB.toFixed(2)}`, leader: sentA > sentB ? nameA : nameB },
-      { dimension: "Projected XGB Growth", topic_a_val: `${forecastGrowthA >= 0 ? `+${forecastGrowthA}` : forecastGrowthA}%`, topic_b_val: `${forecastGrowthB >= 0 ? `+${forecastGrowthB}` : forecastGrowthB}%`, leader: forecastGrowthA > forecastGrowthB ? nameA : nameB }
+      { 
+        dimension: "Trend Momentum", 
+        topic_a_val: `${scoreA}/100`, 
+        topic_b_val: `${scoreB}/100`, 
+        leader: scoreA > scoreB ? nameA : (scoreB > scoreA ? nameB : "Tie"),
+        edge: scoreA !== scoreB ? `${Math.abs(scoreA - scoreB).toFixed(1)} pts` : 'Equal'
+      },
+      { 
+        dimension: "Relative Growth Rate", 
+        topic_a_val: `${growthA >= 0 ? `+${growthA}` : growthA}%`, 
+        topic_b_val: `${growthB >= 0 ? `+${growthB}` : growthB}%`, 
+        leader: growthA > growthB ? nameA : nameB,
+        edge: `${Math.abs(growthA - growthB).toFixed(1)}% delta`
+      },
+      { 
+        dimension: "Viral Reproduction R0", 
+        topic_a_val: `${r0A.toFixed(2)}`, 
+        topic_b_val: `${r0B.toFixed(2)}`, 
+        leader: r0A > r0B ? nameA : (r0B > r0A ? nameB : "Tie"),
+        edge: `${Math.abs(r0A - r0B).toFixed(2)} R0`
+      },
+      { 
+        dimension: "Active Volume Base", 
+        topic_a_val: `${volA} posts`, 
+        topic_b_val: `${volB} posts`, 
+        leader: volA > volB ? nameA : nameB,
+        edge: `${Math.abs(volA - volB)} posts`
+      },
+      { 
+        dimension: "Sentiment Polarity", 
+        topic_a_val: `${sentA >= 0 ? `+${sentA.toFixed(2)}` : sentA.toFixed(2)}`, 
+        topic_b_val: `${sentB >= 0 ? `+${sentB.toFixed(2)}` : sentB.toFixed(2)}`, 
+        leader: sentA > sentB ? nameA : nameB,
+        edge: `${Math.abs(sentA - sentB).toFixed(2)} pts`
+      },
+      { 
+        dimension: "Projected XGB Growth", 
+        topic_a_val: `${forecastGrowthA >= 0 ? `+${forecastGrowthA}` : forecastGrowthA}%`, 
+        topic_b_val: `${forecastGrowthB >= 0 ? `+${forecastGrowthB}` : forecastGrowthB}%`, 
+        leader: forecastGrowthA > forecastGrowthB ? nameA : nameB,
+        edge: `${Math.abs(forecastGrowthA - forecastGrowthB).toFixed(1)}% forecast`
+      }
     ]
   };
 };
 
-export default function TopicComparator({ topics }) {
-  const [topicAId, setTopicAId] = useState(topics?.[0]?.topic_id || 'generative_ai');
-  const [topicBId, setTopicBId] = useState(topics?.[1]?.topic_id || 'quantum_sensing');
-  const [comparison, setComparison] = useState(null);
-  const [loading, setLoading] = useState(false);
+export default function TopicComparator({ topics = [] }) {
+  const safeTopics = Array.isArray(topics) && topics.length > 0 ? topics : [];
 
-  // Sync state if topics list updates
-  useEffect(() => {
-    if (topics && topics.length >= 2) {
-      const existsA = topics.some(t => t.topic_id === topicAId);
-      const existsB = topics.some(t => t.topic_id === topicBId);
+  // Default selection IDs
+  const [selectedA, setSelectedA] = useState(null);
+  const [selectedB, setSelectedB] = useState(null);
 
-      const targetA = existsA ? topicAId : topics[0].topic_id;
-      const targetB = existsB && targetB !== targetA 
-        ? topicBId 
-        : (topics.find(t => t.topic_id !== targetA)?.topic_id || topics[1]?.topic_id || targetA);
-
-      if (targetA !== topicAId) setTopicAId(targetA);
-      if (targetB !== topicBId) setTopicBId(targetB);
-
-      fetchComparison(targetA, targetB);
+  // Safely resolve active Topic A and Topic B objects synchronously
+  const topicA = useMemo(() => {
+    if (safeTopics.length === 0) return null;
+    if (selectedA) {
+      const match = safeTopics.find(t => t.topic_id === selectedA);
+      if (match) return match;
     }
-  }, [topics, topicAId, topicBId]);
+    return safeTopics[0];
+  }, [safeTopics, selectedA]);
 
-  const fetchComparison = async (t1, t2) => {
-    const idA = t1 || topicAId;
-    const idB = t2 || topicBId;
-    if (!idA || !idB) return;
-
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/compare?t1=${idA}&t2=${idB}`);
-      if (res.ok) {
-        const text = await res.text();
-        if (!text.trim().startsWith('<') && !text.trim().startsWith('<!DOCTYPE') && !text.trim().startsWith('<!doctype')) {
-          const cleanJson = text
-            .replace(/:\s*NaN\b/g, ': null')
-            .replace(/:\s*Infinity\b/g, ': null')
-            .replace(/:\s*-Infinity\b/g, ': null');
-          const data = JSON.parse(cleanJson);
-          if (data && data.topic_a && data.topic_b) {
-            setComparison(data);
-            setLoading(false);
-            return;
-          }
-        }
-      }
-    } catch (err) {
-      console.warn("Backend /api/compare unavailable, activating client-side comparison synthesis:", err);
+  const topicB = useMemo(() => {
+    if (safeTopics.length === 0) return null;
+    if (selectedB) {
+      const match = safeTopics.find(t => t.topic_id === selectedB && t.topic_id !== topicA?.topic_id);
+      if (match) return match;
     }
+    // Return second topic or first non-identical topic
+    const alternative = safeTopics.find(t => t.topic_id !== topicA?.topic_id);
+    return alternative || safeTopics[1] || safeTopics[0];
+  }, [safeTopics, selectedB, topicA]);
 
-    // Client-side synthesis fallback
-    const tA = topics?.find(t => t.topic_id === idA) || topics?.[0];
-    const tB = topics?.find(t => t.topic_id === idB) || topics?.[1];
-
-    if (tA && tB) {
-      const clientData = generateClientComparison(tA, tB);
-      setComparison(clientData);
+  // Handle swap action
+  const handleSwap = () => {
+    if (topicA && topicB) {
+      setSelectedA(topicB.topic_id);
+      setSelectedB(topicA.topic_id);
     }
-    setLoading(false);
   };
 
-  if (!topics || topics.length < 2) {
-    return <div className="glass-panel" style={{ padding: '20px' }}>At least 2 topics required for comparison.</div>;
+  // Synchronously compute comparative data
+  const comparison = useMemo(() => {
+    if (!topicA || !topicB) return null;
+    return synthesizeComparison(topicA, topicB);
+  }, [topicA, topicB]);
+
+  // Loading / empty state
+  if (safeTopics.length < 2 || !comparison) {
+    return (
+      <div className="glass-panel" style={{ padding: '36px', textAlign: 'center', margin: '20px 0' }}>
+        <div style={{ display: 'inline-flex', padding: '12px', borderRadius: '50%', background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', marginBottom: '12px' }}>
+          <GitCompare size={28} />
+        </div>
+        <h3 style={{ fontSize: '1.1rem', color: '#fff', marginBottom: '8px' }}>Topic Comparison Engine</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', maxWidth: '440px', margin: '0 auto' }}>
+          {safeTopics.length === 0 
+            ? "Syncing real-time topic telemetry from streaming observation window..." 
+            : "At least 2 active topics are required to construct comparative head-to-head analysis."}
+        </p>
+      </div>
+    );
   }
 
-  // Active topic objects
-  const topicA = topics.find(t => t.topic_id === topicAId) || topics[0];
-  const topicB = topics.find(t => t.topic_id === topicBId) || topics[1];
-
-  // Guaranteed fallback data if comparison is somehow still generating
-  const activeComp = comparison || generateClientComparison(topicA, topicB);
-
-  // Prepare comparison grouped bar chart
+  // Bar Chart Configuration
   const compBarData = [
     {
-      name: activeComp.topic_a.name,
-      x: ['Trend Score', 'Growth Rate (%)', 'Sentiment (x100)', 'Projected XGB Growth (%)'],
+      name: comparison.topic_a.name,
+      x: ['Trend Score', 'Growth (%)', 'Sentiment (x100)', 'XGB Forecast (%)'],
       y: [
-        activeComp.topic_a.trend_score,
-        activeComp.topic_a.relative_growth_pct,
-        activeComp.topic_a.sentiment * 100,
-        activeComp.topic_a.projected_growth_xgb
+        comparison.topic_a.trend_score,
+        comparison.topic_a.relative_growth_pct,
+        comparison.topic_a.sentiment * 100,
+        comparison.topic_a.projected_growth_xgb
       ],
       type: 'bar',
       marker: { color: '#3b82f6' }
     },
     {
-      name: activeComp.topic_b.name,
-      x: ['Trend Score', 'Growth Rate (%)', 'Sentiment (x100)', 'Projected XGB Growth (%)'],
+      name: comparison.topic_b.name,
+      x: ['Trend Score', 'Growth (%)', 'Sentiment (x100)', 'XGB Forecast (%)'],
       y: [
-        activeComp.topic_b.trend_score,
-        activeComp.topic_b.relative_growth_pct,
-        activeComp.topic_b.sentiment * 100,
-        activeComp.topic_b.projected_growth_xgb
+        comparison.topic_b.trend_score,
+        comparison.topic_b.relative_growth_pct,
+        comparison.topic_b.sentiment * 100,
+        comparison.topic_b.projected_growth_xgb
       ],
       type: 'bar',
       marker: { color: '#06b6d4' }
@@ -182,8 +210,8 @@ export default function TopicComparator({ topics }) {
 
   const compLayout = {
     title: {
-      text: `Direct Head-to-Head Metric Contrast`,
-      font: { size: 13, color: '#fff' }
+      text: `Direct Head-to-Head Signal Metrics`,
+      font: { size: 13, color: '#f8fafc' }
     },
     barmode: 'group',
     legend: { orientation: 'h', x: 0, y: 1.15, font: { size: 10, color: '#94a3b8' } },
@@ -195,131 +223,194 @@ export default function TopicComparator({ topics }) {
   };
 
   return (
-    <div className="comparison-container">
-      {/* Selectors Bar */}
-      <div className="comparison-selectors">
-        <div className="select-group">
-          <label>Topic A:</label>
-          <select 
-            className="custom-select" 
-            value={topicAId} 
-            onChange={(e) => setTopicAId(e.target.value)}
+    <ErrorBoundary fallback={<div className="glass-panel" style={{ padding: '20px' }}>Unable to render topic comparison at this time.</div>}>
+      <div className="comparison-container">
+        {/* Selectors Bar */}
+        <div className="comparison-selectors">
+          <div className="select-group">
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3b82f6' }} />
+              Topic A:
+            </label>
+            <select 
+              className="custom-select" 
+              value={topicA?.topic_id || ''} 
+              onChange={(e) => setSelectedA(e.target.value)}
+            >
+              {safeTopics.map(t => (
+                <option key={t.topic_id} value={t.topic_id}>{t.topic_name}</option>
+              ))}
+            </select>
+          </div>
+
+          <span className="vs-badge">VS</span>
+
+          <div className="select-group">
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#06b6d4' }} />
+              Topic B:
+            </label>
+            <select 
+              className="custom-select" 
+              value={topicB?.topic_id || ''} 
+              onChange={(e) => setSelectedB(e.target.value)}
+            >
+              {safeTopics.map(t => (
+                <option key={t.topic_id} value={t.topic_id}>{t.topic_name}</option>
+              ))}
+            </select>
+          </div>
+
+          <button 
+            className="btn btn-secondary" 
+            onClick={handleSwap}
+            style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
-            {topics.map(t => (
-              <option key={t.topic_id} value={t.topic_id}>{t.topic_name}</option>
-            ))}
-          </select>
+            <ArrowRightLeft size={14} /> Swap Topics
+          </button>
         </div>
 
-        <span className="vs-badge">VS</span>
-
-        <div className="select-group">
-          <label>Topic B:</label>
-          <select 
-            className="custom-select" 
-            value={topicBId} 
-            onChange={(e) => setTopicBId(e.target.value)}
-          >
-            {topics.map(t => (
-              <option key={t.topic_id} value={t.topic_id}>{t.topic_name}</option>
-            ))}
-          </select>
-        </div>
-
-        <button 
-          className="btn btn-secondary" 
-          onClick={() => {
-            const temp = topicAId;
-            setTopicAId(topicBId);
-            setTopicBId(temp);
-          }}
-          style={{ marginLeft: 'auto' }}
-        >
-          <GitCompare size={14} /> Swap Topics
-        </button>
-      </div>
-
-      {loading && <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '8px' }}>Synthesizing comparative AI insights...</div>}
-
-      {/* AI Comparative Narrative Box (Module 6) */}
-      <div className="ai-spotlight-card" style={{ marginBottom: '16px' }}>
-        <div className="ai-spotlight-header">
-          <div className="ai-header-left">
-            <span className="ai-badge">
-              <GitCompare size={13} />
-              AI Comparative Synthesis
-            </span>
-            <span className="caution-tag">
-              Non-Dogmatic • Multi-Signal Contrast
-            </span>
-          </div>
-        </div>
-
-        <div className="ai-narrative-box" style={{ marginBottom: '0' }}>
-          <p style={{ lineHeight: 1.7, fontSize: '0.88rem', color: '#e2e8f0' }}>
-            {activeComp.summary_verdict}
-          </p>
-        </div>
-      </div>
-
-      {/* Side-by-Side Chart & Dimension Table */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-        {/* Chart */}
-        <div className="glass-panel chart-card">
-          <div className="chart-card-header">
-            <div>
-              <h3 className="chart-card-title">
-                <TrendingUp size={16} color="#3b82f6" />
-                Comparative Visual Metrics
-              </h3>
-              <p className="chart-card-subtitle">Bar contrast across score, growth rate, sentiment and XGBoost forecast</p>
-            </div>
-          </div>
-          <div style={{ flex: 1, minHeight: '300px' }}>
-            <PlotlyChart data={compBarData} layout={compLayout} />
-          </div>
-        </div>
-
-        {/* Table */}
-        <div className="glass-panel chart-card">
-          <div className="chart-card-header">
-            <div>
-              <h3 className="chart-card-title">
-                <Trophy size={16} color="#10b981" />
-                Dimensional Leader Breakdown
-              </h3>
-              <p className="chart-card-subtitle">Head-to-head comparison across core diffusion and predictive features</p>
+        {/* AI Comparative Narrative Box (Module 6) */}
+        <div className="ai-spotlight-card">
+          <div className="ai-spotlight-header">
+            <div className="ai-header-left">
+              <span className="ai-badge">
+                <Sparkles size={13} />
+                AI Comparative Synthesis
+              </span>
+              <span className="caution-tag">
+                Non-Dogmatic • Multi-Signal Contrast
+              </span>
             </div>
           </div>
 
-          <div className="comparison-table-wrapper" style={{ flex: 1 }}>
-            <table className="comp-table">
-              <thead>
-                <tr>
-                  <th>Dimension</th>
-                  <th>{activeComp.topic_a.name}</th>
-                  <th>{activeComp.topic_b.name}</th>
-                  <th>Signal Leader</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activeComp.dimensions.map((dim, i) => (
-                  <tr key={i}>
-                    <td style={{ fontWeight: 600, color: '#fff' }}>{dim.dimension}</td>
-                    <td style={{ fontFamily: 'var(--font-mono)' }}>{dim.topic_a_val}</td>
-                    <td style={{ fontFamily: 'var(--font-mono)' }}>{dim.topic_b_val}</td>
-                    <td>
-                      <span className="leader-tag">
-                        <CheckCircle size={11} /> {dim.leader}
-                      </span>
-                    </td>
+          <div className="ai-narrative-box" style={{ marginBottom: '0' }}>
+            <p style={{ lineHeight: 1.7, fontSize: '0.88rem', color: '#e2e8f0', margin: 0 }}>
+              {comparison.summary_verdict}
+            </p>
+          </div>
+        </div>
+
+        {/* Quick Head-to-Head Profile Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          {/* Card A */}
+          <div className="glass-panel" style={{ padding: '16px 20px', borderLeft: '4px solid #3b82f6' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <div>
+                <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.05em' }}>Topic Profile A</span>
+                <h4 style={{ fontSize: '1.05rem', color: '#fff', margin: '2px 0 0 0' }}>{comparison.topic_a.name}</h4>
+              </div>
+              <span style={{ padding: '4px 10px', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', fontSize: '0.75rem', fontWeight: 600 }}>
+                {comparison.topic_a.state}
+              </span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '8px 10px', borderRadius: '8px' }}>
+                <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Trend Score</span>
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff' }}>{comparison.topic_a.trend_score}/100</div>
+              </div>
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '8px 10px', borderRadius: '8px' }}>
+                <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Growth</span>
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: comparison.topic_a.relative_growth_pct >= 0 ? '#10b981' : '#ef4444' }}>
+                  {comparison.topic_a.relative_growth_pct >= 0 ? `+${comparison.topic_a.relative_growth_pct}` : comparison.topic_a.relative_growth_pct}%
+                </div>
+              </div>
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '8px 10px', borderRadius: '8px' }}>
+                <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Viral R0</span>
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#38bdf8' }}>{comparison.topic_a.r0.toFixed(2)}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Card B */}
+          <div className="glass-panel" style={{ padding: '16px 20px', borderLeft: '4px solid #06b6d4' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <div>
+                <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.05em' }}>Topic Profile B</span>
+                <h4 style={{ fontSize: '1.05rem', color: '#fff', margin: '2px 0 0 0' }}>{comparison.topic_b.name}</h4>
+              </div>
+              <span style={{ padding: '4px 10px', borderRadius: '12px', background: 'rgba(6, 182, 212, 0.15)', color: '#22d3ee', fontSize: '0.75rem', fontWeight: 600 }}>
+                {comparison.topic_b.state}
+              </span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '8px 10px', borderRadius: '8px' }}>
+                <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Trend Score</span>
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff' }}>{comparison.topic_b.trend_score}/100</div>
+              </div>
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '8px 10px', borderRadius: '8px' }}>
+                <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Growth</span>
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: comparison.topic_b.relative_growth_pct >= 0 ? '#10b981' : '#ef4444' }}>
+                  {comparison.topic_b.relative_growth_pct >= 0 ? `+${comparison.topic_b.relative_growth_pct}` : comparison.topic_b.relative_growth_pct}%
+                </div>
+              </div>
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '8px 10px', borderRadius: '8px' }}>
+                <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Viral R0</span>
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#38bdf8' }}>{comparison.topic_b.r0.toFixed(2)}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Side-by-Side Visual Metrics & Dimensional Breakdown */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+          {/* Chart Card */}
+          <div className="glass-panel chart-card">
+            <div className="chart-card-header">
+              <div>
+                <h3 className="chart-card-title">
+                  <TrendingUp size={16} color="#3b82f6" />
+                  Comparative Signal Metrics
+                </h3>
+                <p className="chart-card-subtitle">Normalized bar contrast across momentum, influx rate, sentiment and XGBoost forecast</p>
+              </div>
+            </div>
+            <div style={{ flex: 1, minHeight: '320px' }}>
+              <PlotlyChart data={compBarData} layout={compLayout} />
+            </div>
+          </div>
+
+          {/* Table Card */}
+          <div className="glass-panel chart-card">
+            <div className="chart-card-header">
+              <div>
+                <h3 className="chart-card-title">
+                  <Trophy size={16} color="#10b981" />
+                  Dimensional Leader Breakdown
+                </h3>
+                <p className="chart-card-subtitle">Head-to-head signal dominance across core diffusion and predictive features</p>
+              </div>
+            </div>
+
+            <div className="comparison-table-wrapper" style={{ flex: 1 }}>
+              <table className="comp-table">
+                <thead>
+                  <tr>
+                    <th>Dimension</th>
+                    <th>{comparison.topic_a.name}</th>
+                    <th>{comparison.topic_b.name}</th>
+                    <th>Signal Leader</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {comparison.dimensions.map((dim, i) => (
+                    <tr key={i}>
+                      <td style={{ fontWeight: 600, color: '#fff' }}>{dim.dimension}</td>
+                      <td style={{ fontFamily: 'var(--font-mono)', color: '#93c5fd' }}>{dim.topic_a_val}</td>
+                      <td style={{ fontFamily: 'var(--font-mono)', color: '#67e8f9' }}>{dim.topic_b_val}</td>
+                      <td>
+                        <span className="leader-tag" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <CheckCircle size={11} color="#10b981" /> {dim.leader}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 }
