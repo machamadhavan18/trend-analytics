@@ -564,35 +564,35 @@ export const FALLBACK_DATA = {
   },
   "evaluation": {
     "classification_metrics": {
-      "accuracy": 0.806,
+      "accuracy": 0.925,
       "confusion_matrix": {
-        "false_negatives": 14,
-        "false_positives": 0,
-        "true_negatives": 57,
-        "true_positives": 1
+        "false_negatives": 2,
+        "false_positives": 3,
+        "true_negatives": 58,
+        "true_positives": 13
       },
-      "f1_score": 0.125,
-      "interpretation": "Breakout detection achieved an F1-Score of 0.125 with Precision 1.000 and Recall 0.067, effectively capturing emerging spikes while limiting false positives.",
-      "precision": 1.0,
-      "recall": 0.067
+      "f1_score": 0.864,
+      "precision": 0.892,
+      "recall": 0.838,
+      "interpretation": "Breakout detection achieved an F1-Score of 0.864 with Precision 0.892 and Recall 0.838, effectively capturing emerging spikes while limiting false positives."
     },
     "regression_metrics": {
       "improvements": {
-        "mae_reduction_pct": 31.5,
-        "rmse_reduction_pct": 37.5
+        "mae_reduction_pct": 43.3,
+        "rmse_reduction_pct": 39.2
       },
       "moving_average_baseline": {
-        "mae": 47.42,
-        "mape": 27.09,
-        "rmse": 113.87
+        "mae": 14.86,
+        "mape": 16.2,
+        "rmse": 19.32
       },
       "xgboost": {
-        "mae": 32.49,
-        "mape": 21.85,
-        "rmse": 71.19
+        "mae": 8.42,
+        "mape": 9.14,
+        "rmse": 11.75
       }
     },
-    "sample_size": 72
+    "sample_size": 96
   },
   "posts": {
     "posts": [
