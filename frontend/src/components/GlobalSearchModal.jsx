@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Search, X, Tag, Heart, Repeat, Sparkles, User, ExternalLink, ArrowRight, TrendingUp } from 'lucide-react';
+import ErrorBoundary from './ErrorBoundary';
 
-export default function GlobalSearchModal({ isOpen, onClose, onSelectTopic }) {
+export default function GlobalSearchModal({ isOpen, onClose, topics = [], onSelectTopic }) {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
@@ -72,10 +73,17 @@ export default function GlobalSearchModal({ isOpen, onClose, onSelectTopic }) {
     setResults({
       query: searchTerm,
       total_matches: Math.max(1, matchedTopics.length) * 128 + 14,
-      matched_topics: matchedTopics.length > 0 ? matchedTopics : (topics ? topics.slice(0, 2) : []),
+      matched_topics: matchedTopics.length > 0 ? matchedTopics : (topics && topics.length > 0 ? topics.slice(0, 2) : []),
       matched_posts: mockPosts
     });
     setLoading(false);
+  };
+
+  const handleSelectTopic = (topicId) => {
+    if (onSelectTopic) {
+      onSelectTopic(topicId);
+    }
+    onClose();
   };
 
   const sampleKeywords = ['NVIDIA', 'Quantum', 'Breakthrough', 'Regulation', 'Security', 'FinTech', 'Algorithm', 'Privacy'];
@@ -87,258 +95,204 @@ export default function GlobalSearchModal({ isOpen, onClose, onSelectTopic }) {
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 1100 }}>
-      <div 
-        className="glass-panel" 
-        onClick={(e) => e.stopPropagation()} 
-        style={{
-          width: '900px',
-          maxWidth: '94vw',
-          maxHeight: '88vh',
-          display: 'flex',
-          flexDirection: 'column',
-          padding: '24px',
-          borderRadius: '16px',
-          boxShadow: '0 25px 60px rgba(0, 0, 0, 0.6)',
-          border: '1px solid rgba(59, 130, 246, 0.35)',
-          background: 'rgba(10, 14, 23, 0.95)'
-        }}
-      >
-        {/* Header Bar */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ background: 'rgba(59, 130, 246, 0.2)', padding: '6px', borderRadius: '8px', color: '#60a5fa' }}>
-              <Search size={18} />
+    <ErrorBoundary fallback={<div className="modal-overlay"><div className="glass-panel" style={{ padding: '24px' }}>Global Search temporarily unavailable.<button className="btn btn-secondary" onClick={onClose} style={{ marginTop: '12px' }}>Close</button></div></div>}>
+      <div className="modal-overlay modal-backdrop" onClick={onClose} style={{ zIndex: 2000 }}>
+        <div 
+          className="glass-panel" 
+          onClick={(e) => e.stopPropagation()} 
+          style={{
+            width: '900px',
+            maxWidth: '94vw',
+            maxHeight: '88vh',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '24px',
+            borderRadius: '16px',
+            boxShadow: '0 25px 60px rgba(0, 0, 0, 0.7)',
+            border: '1px solid rgba(59, 130, 246, 0.35)',
+            background: 'rgba(10, 14, 23, 0.98)'
+          }}
+        >
+          {/* Header Bar */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ background: 'rgba(59, 130, 246, 0.2)', padding: '6px', borderRadius: '8px', color: '#60a5fa' }}>
+                <Search size={18} />
+              </div>
+              <div>
+                <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff', margin: 0 }}>
+                  Global Topic & Content Discovery Engine
+                </h2>
+                <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', margin: 0 }}>
+                  Search across all monitored streams, hashtags, entities, and live post texts
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff', margin: 0 }}>
-                Global Topic & Content Discovery Engine
-              </h2>
-              <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', margin: 0 }}>
-                Search across all monitored streams, hashtags, entities, and live post texts
-              </p>
-            </div>
+
+            <button onClick={onClose} className="close-btn" style={{ padding: '6px' }}>
+              <X size={18} />
+            </button>
           </div>
 
-          <button onClick={onClose} className="btn btn-secondary" style={{ padding: '6px', borderRadius: '8px' }}>
-            <X size={16} />
-          </button>
-        </div>
-
-        {/* Input & Quick Chips */}
-        <div style={{ position: 'relative', marginBottom: '12px' }}>
-          <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#60a5fa' }} />
-          <input
-            type="text"
-            placeholder="Type any keyword or entity (e.g., 'nvidia', 'quantum', 'regulation', 'security')..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            autoFocus
-            style={{
-              width: '100%',
-              background: 'rgba(15, 23, 42, 0.8)',
-              border: '1px solid rgba(59, 130, 246, 0.4)',
-              borderRadius: '8px',
-              padding: '10px 14px 10px 38px',
-              color: '#fff',
-              fontSize: '0.9rem',
-              outline: 'none',
-              boxShadow: '0 0 15px rgba(59, 130, 246, 0.15)'
-            }}
-          />
-          {query && (
-            <button 
-              onClick={() => { setQuery(''); setResults(null); }} 
-              style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}
-            >
-              <X size={14} />
-            </button>
-          )}
-        </div>
-
-        {/* Quick Suggestion Chips */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '16px' }}>
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>Trending queries:</span>
-          {sampleKeywords.map((kw, i) => (
-            <button
-              key={i}
-              onClick={() => { setQuery(kw); executeSearch(kw); }}
+          {/* Input & Quick Chips */}
+          <div style={{ position: 'relative', marginBottom: '12px' }}>
+            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#60a5fa' }} />
+            <input
+              type="text"
+              placeholder="Type any keyword or entity (e.g., 'nvidia', 'quantum', 'regulation', 'security')..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              autoFocus
               style={{
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid var(--border-color)',
-                color: '#cbd5e1',
-                borderRadius: '12px',
-                padding: '2px 8px',
-                fontSize: '0.72rem',
-                cursor: 'pointer'
+                width: '100%',
+                background: 'rgba(15, 23, 42, 0.8)',
+                border: '1px solid rgba(59, 130, 246, 0.4)',
+                borderRadius: '10px',
+                padding: '12px 14px 12px 38px',
+                color: '#fff',
+                fontSize: '0.9rem',
+                outline: 'none',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
               }}
-            >
-              #{kw}
-            </button>
-          ))}
-        </div>
+            />
+          </div>
 
-        {/* Scrollable Content Body */}
-        <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }}>
-          {loading && (
-            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-              <div style={{ display: 'inline-block', width: '24px', height: '24px', border: '2px solid rgba(59, 130, 246, 0.3)', borderTopColor: '#3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-              <div style={{ marginTop: '10px', fontSize: '0.82rem' }}>Scanning multi-topic social stream index...</div>
-            </div>
-          )}
+          {/* Quick Keywords Chips */}
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>Trending queries:</span>
+            {sampleKeywords.map((k) => (
+              <button
+                key={k}
+                onClick={() => {
+                  setQuery(k);
+                  executeSearch(k);
+                }}
+                className="btn btn-secondary"
+                style={{
+                  fontSize: '0.7rem',
+                  padding: '3px 8px',
+                  borderRadius: '14px',
+                  background: 'rgba(255,255,255,0.04)',
+                  borderColor: 'rgba(255,255,255,0.1)'
+                }}
+              >
+                #{k}
+              </button>
+            ))}
+          </div>
 
-          {!loading && results && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Summary Metrics Row */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-                <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Total Matches</div>
-                  <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#60a5fa', marginTop: '2px' }}>
-                    {results.total_matches} <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>posts</span>
-                  </div>
-                </div>
-
-                <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Sentiment Polarity</div>
-                  <div style={{ display: 'flex', height: '6px', borderRadius: '3px', overflow: 'hidden', margin: '8px 0 4px 0' }}>
-                    <div style={{ width: `${results.sentiment_distribution?.positive_pct || 0}%`, background: '#10b981' }} />
-                    <div style={{ width: `${results.sentiment_distribution?.neutral_pct || 0}%`, background: '#64748b' }} />
-                    <div style={{ width: `${results.sentiment_distribution?.negative_pct || 0}%`, background: '#f43f5e' }} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                    <span style={{ color: '#34d399' }}>Pos: {results.sentiment_distribution?.positive_pct}%</span>
-                    <span>Neut: {results.sentiment_distribution?.neutral_pct}%</span>
-                    <span style={{ color: '#fb7185' }}>Neg: {results.sentiment_distribution?.negative_pct}%</span>
-                  </div>
-                </div>
-
-                <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Associated Topics</div>
-                  <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#a78bfa', marginTop: '2px' }}>
-                    {results.matched_topics?.length || 0} <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>clusters</span>
-                  </div>
-                </div>
+          {/* Content Area */}
+          <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {loading && (
+              <div style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
+                <Sparkles size={24} style={{ animation: 'spin 2s linear infinite', margin: '0 auto 8px auto', display: 'block', color: '#3b82f6' }} />
+                Scanning inverted index across all topic clusters...
               </div>
+            )}
 
-              {/* Matched Topics Section */}
-              {results.matched_topics && results.matched_topics.length > 0 && (
-                <div>
-                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#e2e8f0', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Tag size={13} color="#60a5fa" /> Relevant Emerging Topics
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px' }}>
-                    {results.matched_topics.map((t, idx) => (
-                      <div
-                        key={idx}
-                        style={{
-                          background: 'rgba(15, 23, 42, 0.7)',
-                          border: '1px solid var(--border-color)',
-                          borderRadius: '8px',
-                          padding: '10px 14px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between'
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontWeight: 600, color: '#fff', fontSize: '0.84rem' }}>{t.topic_name}</div>
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
-                            <span style={{ fontSize: '0.72rem', color: '#60a5fa', fontWeight: 600 }}>Score: {t.trend_score}</span>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>• {t.match_count} mentions</span>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => {
-                            if (onSelectTopic) onSelectTopic(t.topic_id);
-                            onClose();
+            {!loading && !results && (
+              <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                <Search size={32} style={{ margin: '0 auto 12px auto', display: 'block', opacity: 0.4 }} />
+                <p style={{ margin: 0, fontSize: '0.85rem' }}>Enter a query above to search full-text social stream posts, author metadata, and topic tags.</p>
+              </div>
+            )}
+
+            {!loading && results && (
+              <>
+                {/* Result Summary Bar */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: '8px', fontSize: '0.78rem', color: '#93c5fd' }}>
+                  <span>Found <strong>{results.total_matches}</strong> matching signals for "{results.query}"</span>
+                  <span>{results.matched_topics?.length || 0} topic clusters involved</span>
+                </div>
+
+                {/* 1. Matched Monitored Topics */}
+                {results.matched_topics && results.matched_topics.length > 0 && (
+                  <div>
+                    <h4 style={{ fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                      Associated Topic Horizons
+                    </h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '10px' }}>
+                      {results.matched_topics.map((t) => (
+                        <div
+                          key={t.topic_id}
+                          onClick={() => handleSelectTopic(t.topic_id)}
+                          style={{
+                            background: 'rgba(15, 23, 42, 0.8)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '10px',
+                            padding: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px',
+                            transition: 'all 0.2s'
                           }}
-                          className="btn btn-primary"
-                          style={{ padding: '4px 8px', fontSize: '0.72rem' }}
+                          onMouseEnter={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
+                          onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
                         >
-                          Inspect <ArrowRight size={12} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Co-occurring terms */}
-              {results.co_occurring_terms && results.co_occurring_terms.length > 0 && (
-                <div>
-                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#e2e8f0', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Sparkles size={13} color="#06b6d4" /> Frequently Co-Occurring Terms
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {results.co_occurring_terms.map((item, i) => (
-                      <span
-                        key={i}
-                        onClick={() => { setQuery(item.term); executeSearch(item.term); }}
-                        style={{
-                          background: 'rgba(6, 182, 212, 0.15)',
-                          border: '1px solid rgba(6, 182, 212, 0.3)',
-                          color: '#67e8f9',
-                          padding: '3px 8px',
-                          borderRadius: '12px',
-                          fontSize: '0.72rem',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        +{item.term} ({item.count})
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Matched Live Posts Stream */}
-              <div>
-                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#e2e8f0', marginBottom: '8px' }}>
-                  Matching Stream Posts ({results.matched_posts?.length || 0})
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {results.matched_posts?.map((p, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        background: 'rgba(15, 23, 42, 0.5)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '8px',
-                        padding: '10px 14px'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontWeight: 600, color: '#93c5fd', fontSize: '0.8rem' }}>@{p.author_name}</span>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>in {p.topic_name}</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: 700, color: '#fff', fontSize: '0.9rem' }}>{t.topic_name}</span>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#60a5fa' }}>Score {t.trend_score}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                            <span>Vol: {t.current_volume || t.volume}</span>
+                            <span style={{ color: (t.relative_growth_pct || 0) >= 0 ? '#34d399' : '#fb7185' }}>
+                              {(t.relative_growth_pct || 0) >= 0 ? `+${t.relative_growth_pct}%` : `${t.relative_growth_pct}%`}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '0.72rem', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+                            Open Topic Deep Dive <ArrowRight size={12} />
+                          </span>
                         </div>
-                        {getSentimentBadge(p.sentiment || 0)}
-                      </div>
-                      <div style={{ fontSize: '0.82rem', color: '#cbd5e1', lineHeight: 1.45 }}>
-                        {p.text}
-                      </div>
-                      <div style={{ display: 'flex', gap: '14px', marginTop: '6px', fontSize: '0.72rem', color: 'var(--text-dim)' }}>
-                        <span><Heart size={11} style={{ display: 'inline', marginRight: '3px', verticalAlign: 'middle' }} />{p.likes}</span>
-                        <span><Repeat size={11} style={{ display: 'inline', marginRight: '3px', verticalAlign: 'middle' }} />{p.retweets}</span>
-                      </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+                  </div>
+                )}
 
-          {!loading && !results && query.trim() === '' && (
-            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
-              <Sparkles size={28} color="#3b82f6" style={{ margin: '0 auto 12px auto', display: 'block', opacity: 0.6 }} />
-              <div style={{ fontSize: '0.9rem', color: '#cbd5e1', fontWeight: 600 }}>Explore Global Social Signals</div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', maxWidth: '420px', margin: '6px auto 0 auto' }}>
-                Search any company, token, framework, controversy, or phenomenon to isolate sentiment and diffusion patterns.
-              </div>
-            </div>
-          )}
+                {/* 2. Matched Posts In Feed */}
+                {results.matched_posts && results.matched_posts.length > 0 && (
+                  <div>
+                    <h4 style={{ fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                      Matched Live Stream Posts
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {results.matched_posts.map((post) => (
+                        <div
+                          key={post.post_id}
+                          style={{
+                            background: 'rgba(15, 23, 42, 0.6)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '10px',
+                            padding: '12px 14px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontWeight: 600, color: '#fff', fontSize: '0.82rem' }}>{post.author_name}</span>
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>({(post.author_followers || 0).toLocaleString()} followers)</span>
+                              <span style={{ fontSize: '0.7rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa' }}>{post.topic_name}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              {getSentimentBadge(post.sentiment || 0)}
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>{post.timestamp}</span>
+                            </div>
+                          </div>
+                          <p style={{ margin: 0, fontSize: '0.84rem', color: '#e2e8f0', lineHeight: 1.5 }}>
+                            {post.text}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 }

@@ -17,7 +17,8 @@ export default function Header({
   onOpenModelStudio,
   alertCount,
   activeTab,
-  setActiveTab
+  setActiveTab,
+  topics = []
 }) {
   const handleExportPdf = () => {
     fetch('/api/export/pdf')
@@ -54,7 +55,25 @@ export default function Header({
         a.remove();
       })
       .catch(() => {
-        const csvContent = "data:text/csv;charset=utf-8,Topic,Trend Score,Volume,Velocity,State\n#GreenHydrogen,96.1,215,+132,Surging\n#GenerativeAI,68.4,409,+45,Steady\n#QuantumSensing,64.0,920,+210,Steady\n#ZeroTrustSecurity,63.8,90,+11,Steady\n#SpatialComputing,42.8,40,-11,Decaying\n#AutonomousVehicles,38.7,43,-42,Decaying\n";
+        const rows = [['Topic', 'Trend Score', 'Volume', 'Growth (%)', 'State', 'R0 Index']];
+        (topics && topics.length > 0 ? topics : [
+          { topic_name: '#GenerativeAI', trend_score: 83.8, current_volume: 471, relative_growth_pct: 38.5, trend_state: 'Emerging', network_summary: { reproduction_number_r0: 4.8 } },
+          { topic_name: '#QuantumSensing', trend_score: 72.4, current_volume: 920, relative_growth_pct: 21.0, trend_state: 'Steady', network_summary: { reproduction_number_r0: 3.6 } },
+          { topic_name: '#GreenHydrogen', trend_score: 96.1, current_volume: 215, relative_growth_pct: 159.0, trend_state: 'Surging', network_summary: { reproduction_number_r0: 4.8 } },
+          { topic_name: '#ZeroTrustSecurity', trend_score: 63.8, current_volume: 90, relative_growth_pct: 11.2, trend_state: 'Steady', network_summary: { reproduction_number_r0: 2.1 } },
+          { topic_name: '#SpatialComputing', trend_score: 42.8, current_volume: 40, relative_growth_pct: -11.0, trend_state: 'Decaying', network_summary: { reproduction_number_r0: 1.4 } },
+          { topic_name: '#AutonomousVehicles', trend_score: 38.7, current_volume: 43, relative_growth_pct: -42.0, trend_state: 'Decaying', network_summary: { reproduction_number_r0: 1.2 } }
+        ]).forEach(t => {
+          rows.push([
+            t.topic_name || t.topic_id,
+            t.trend_score ?? 70,
+            t.current_volume ?? t.volume ?? 100,
+            t.relative_growth_pct ?? 0,
+            t.trend_state ?? 'Steady',
+            t.network_summary?.reproduction_number_r0 ?? 4.8
+          ]);
+        });
+        const csvContent = 'data:text/csv;charset=utf-8,' + rows.map(e => e.join(',')).join('\n');
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement('a');
         link.setAttribute('href', encodedUri);

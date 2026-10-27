@@ -78,7 +78,8 @@ export default function App() {
     if (url.startsWith('/api/evaluation')) return FALLBACK_DATA.evaluation;
     if (url.startsWith('/api/posts/live')) return FALLBACK_DATA.posts;
     if (url.startsWith('/api/simulate/step')) {
-      return { status: 'success', current_window: 17 };
+      const nextWin = Math.min(24, currentWindow + 1);
+      return { status: 'success', current_window: nextWin };
     }
     if (url.startsWith('/api/simulate/reset')) {
       return { status: 'reset', current_window: 16 };
@@ -205,6 +206,8 @@ export default function App() {
     try {
       await safeFetchJson('/api/simulate/reset', { method: 'POST' });
       setIsStreaming(false);
+      setCurrentWindow(16);
+      setActiveWindow(15);
       fetchInitialData();
     } catch (err) {
       console.error("Error resetting simulation:", err);
@@ -452,6 +455,7 @@ export default function App() {
       <GlobalSearchModal
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
+        topics={topics}
         onSelectTopic={handleSelectTopicFromSearch}
       />
 
